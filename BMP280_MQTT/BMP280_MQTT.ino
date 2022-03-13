@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_BMP280.h>
+#include "esp_wifi.h"
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -36,10 +37,18 @@ void setup_wifi() {
     Serial.println();
     Serial.print("Connecting to ");
     Serial.println(ssid);
+    int count = 0;
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
+      delay(100);
       Serial.print(".");
+      count++;
+      if (count  > 100) {
+        Serial.println("");
+        Serial.println("Restarting ESP as it can't connect to wifi");
+        Serial.flush();
+        ESP.restart();
+      }
     }
     randomSeed(micros());
     Serial.println("");
@@ -73,6 +82,7 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   delay(2000);
+  esp_wifi_start();
   Serial.println(F("BMP280 Temperature Sensor"));
   
   setup_wifi();
@@ -93,8 +103,8 @@ void setup() {
     if (!client.connected()) {
       reconnect();
     }
-    client.loop();
-
+    Serial.println(ESP.getFreeHeap());
+    bmp.wakeup();
     float temp = bmp.readTemperature() + tempOffset;
     Serial.print("Temp: ");
     Serial.println(temp);
@@ -104,9 +114,12 @@ void setup() {
     client.disconnect();
     Serial.println("going into deep sleep:");
     esp_sleep_enable_timer_wakeup(SleepSecs * 1000000);
+    bmp.sleep();
     Serial.flush();
+    WiFi.disconnect();
+    esp_wifi_stop();
+    delay(500);
     esp_deep_sleep_start();
-    Serial.println("Can't be reached");
 }
 
 void loop() {
