@@ -84,7 +84,7 @@ void setup() {
   delay(2000);
   esp_wifi_start();
   Serial.println(F("BMP280 Temperature Sensor"));
-  
+  esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
   reconnect();
@@ -95,31 +95,31 @@ void setup() {
     delay(1000);
   }
   /* Default settings from datasheet. */
-  bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                  Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-                  Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                  Adafruit_BMP280::FILTER_X16,      /* Filtering. */
+  bmp.setSampling(Adafruit_BMP280::MODE_FORCED,     /* Operating Mode. */
+                  Adafruit_BMP280::SAMPLING_X16,     /* Temp. oversampling */
+                  Adafruit_BMP280::SAMPLING_NONE,    /* Pressure oversampling */
+                  Adafruit_BMP280::FILTER_OFF,      /* Filtering. */
                   Adafruit_BMP280::STANDBY_MS_4000); /* Standby time. */
+  if (cause == ESP_SLEEP_WAKEUP_TIMER) {
     if (!client.connected()) {
       reconnect();
     }
-    Serial.println(ESP.getFreeHeap());
-    bmp.wakeup();
+    bmp.takeForcedMeasurement();
     float temp = bmp.readTemperature() + tempOffset;
     Serial.print("Temp: ");
     Serial.println(temp);
 
     snprintf (msg, MSG_BUFFER_SIZE, "{\"temperature\": %.2f}", temp);
     client.publish(publish_path, msg);
-    client.disconnect();
-    Serial.println("going into deep sleep:");
-    esp_sleep_enable_timer_wakeup(SleepSecs * 1000000);
-    bmp.sleep();
-    Serial.flush();
-    WiFi.disconnect();
-    esp_wifi_stop();
-    delay(500);
-    esp_deep_sleep_start();
+  }
+  client.disconnect();
+  Serial.println("going into deep sleep:");
+  esp_sleep_enable_timer_wakeup(SleepSecs * 1000000);
+  Serial.flush();
+  WiFi.disconnect();
+  esp_wifi_stop();
+  delay(100);
+  esp_deep_sleep_start();
 }
 
 void loop() {
